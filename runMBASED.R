@@ -76,44 +76,60 @@ vcfP <- vcfP[rownames(vcfSNP)]
 vcfP <- vcfP[as.vector(geno(vcfP)$GT!='1|1')]
 vcfSNP<-vcfSNP[rownames(vcfP)]
 
-exonGeneName <- function(x){ s = x[grepl('exon',x)]; strsplit(s[1], '|', fixed=TRUE)[[1]][5]}
+# Find position of GENE names in vep annotated vcf
+
+vepD <- info(header(vcf))[c("CSQ"),]$Description
+vepD <- strsplit(vepD,'Format:', fixed=TRUE)[[1]][2]
+vepD <- trimws(vepD, ("b"))
+vepD <- strsplit(vepD,'|', fixed=TRUE)[[1]]
+pos  <- match("Gene", vepD)
 
 
-vcfSNP <- vcfSNP[sapply(info(vcfSNP)$CSQ, function(x) sum(grepl('exon',x)))>0]
-geneList <- sapply(info(vcfSNP)$CSQ, exonGeneName)
+exonGeneName <- function(x, p){ s = x[grepl('exon',x)]; strsplit(s[1], '|', fixed=TRUE)[[1]][p]}
 
+vcfSNP <- vcf[sapply(info(vcfSNP)$CSQ, function(x) sum(grepl('exon',x)))>0]
+geneList <- sapply(info(vcfSNP)$CSQ, exonGeneName, pos)
 
 ##------------Phase SNVs-------------------
 
+mamatata = data.frame(  Ph1 = as.data.frame(rowRanges(vcfSNP)$REF)$x,
+                        Ph2 =  as.data.frame(rowRanges(vcfSNP)$ALT)$value,
+                        Ph1_count = unlist(info(vcfSNP)$AC),
+                        Ph2_count = info(vcfSNP)$AN - unlist(info(vcfSNP)$AC),
+                        phasing_info = as.vector(unname(geno(vcfP)$GT)))
 
-d = data.frame(rowData(v)['REF'], rowData(v)['ALT'], geno(v)$GT)
-colnames(d) <- c('ph1', 'ph2', 'GT')
+rownames(mamatata) = names(rowRanges(vcfP))
 
-## sort columns ph1 and ph2 on GT=='0|1' or '1|0'
-## pass d$ph1 as allele1 and d$ph2 as allele2
+#Swap Ph1, Ph2, Ph1_count, Ph2_count for phasing_info = 1|0
+mamatata[mamatata$phasing_info == "1|0", c("Ph1", "Ph2", "Ph1_count", "Ph2_count")] <-
+mamatata[mamatata$phasing_info == "1|0", c("Ph2", "Ph1", "Ph2_count", "Ph1_count")]
+
 
 ##-----------MBASED--Prepare samples-------------------
 
-mySNVs <- GRanges(seqnames=as.character(seqnames(vcfSNP)),
-                  ranges=ranges(rowRanges(vcfSNP)),
-                  aseID=geneList,
-                  allele1=as.character(unlist(rowData(vcfSNP)[,'ALT'])),
-                  allele2=as.character(rowData(vcfSNP)[,'REF']))
 
+mySNVs <- GRanges(seqnames=as.character(seqnames(vcfSNP)),
+ranges=ranges(rowRanges(vcfSNP)),
+aseID=geneList,
+allele1=as.character(mamatata$Ph1),
+allele2=as.character(mamatata$Ph2))
 
 
 mySample <- SummarizedExperiment(assays=list(
-  lociAllele1Counts=matrix(as.integer(info(vcfSNP)$AC), ncol=1, dimnames=list(names(mySNVs), 'mySample')),
-  lociAllele2Counts=matrix(as.integer(info(vcfSNP)$AN-info(vcfSNP)$AC), ncol=1, dimnames=list(names(mySNVs), 'mySample'))),
-  rowRanges=mySNVs)
+lociAllele1Counts=matrix(mamatata$Ph1_count, ncol=1, dimnames=list(names(mySNVsPhased), 'mySample')),
+lociAllele2Counts=matrix(mamatata$Ph2_count, ncol=1, dimnames=list(names(mySNVsPhased), 'mySample'))),
+rowRanges=mySNVs)
+
 
 #----Run MBASED
 
+
 ASEres <- runMBASED(
-  ASESummarizedExperiment=mySample,
-  isPhased=FALSE,
-  numSim=as.numeric(ASEarg$numSim),
-  BPPARAM = MulticoreParam(workers=ASEarg$ncpus2use))#SerialParam()) workers=ASEarg$ncpus2use)
+ASESummarizedExperiment=mySample,
+isPhased=TRUE,
+numSim=noSim,
+BPPARAM = MulticoreParam())
+
 
 #------Write results------
 
