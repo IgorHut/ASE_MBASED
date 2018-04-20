@@ -19,7 +19,7 @@ rowRanges(vcf_vep)
 rowRanges(vcf_phased)
 
 
-head(geno(vcf_vep)$GT)
+head(geno(vcf_vep)$GT) 
 
 head(geno(vcf_phased)$GT)
 

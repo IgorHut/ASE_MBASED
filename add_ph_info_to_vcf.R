@@ -23,3 +23,12 @@ header(vcf_vep)@header@listData$FORMAT@listData$Description <-
   c(header(vcf_vep)@header@listData$FORMAT@listData$Description, "Phasing information")
 
 geno(header(vcf_vep))
+
+vcf_test = readVcf("vcf_with_ph_info.vcf")
+vcf_test
+vcf_vep
+vcfGeno(vcf_vep)
+str(info(header(vcf_vep)))
+
+info(header(vcf_vep))@listData
+names(info(vcf_vep))
