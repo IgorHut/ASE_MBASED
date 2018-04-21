@@ -84,19 +84,24 @@ vepD <- trimws(vepD, ("b"))
 vepD <- strsplit(vepD,'|', fixed=TRUE)[[1]]
 pos  <- match("Gene", vepD)
 
-
-exonGeneName <- function(x, p){ s = x[grepl('exon',x)]; strsplit(s[1], '|', fixed=TRUE)[[1]][p]}
-
 vcfSNP <- vcf[sapply(info(vcfSNP)$CSQ, function(x) sum(grepl('exon',x)))>0]
-geneList <- sapply(info(vcfSNP)$CSQ, exonGeneName, pos)
+mutInGene <- function(x, p){ s = x[grepl('exon',x)]; strsplit(s[1], '|', fixed=TRUE)[[1]][p]}
+geneName  <- function(x, p){
+    l = as.character(lapply(x, mutInGene, p))
+    paste(unique(l), sep='',collapse = ';')
+}
+
+geneList <- sapply(info(vcfSNP)$CSQ, geneName, posID)
 
 ##------------Phase SNVs-------------------
 
-mamatata = data.frame(  Ph1 = as.data.frame(rowRanges(vcfSNP)$REF)$x,
-                        Ph2 =  as.data.frame(rowRanges(vcfSNP)$ALT)$value,
-                        Ph1_count = unlist(info(vcfSNP)$AC),
-                        Ph2_count = info(vcfSNP)$AN - unlist(info(vcfSNP)$AC),
-                        phasing_info = as.vector(unname(geno(vcfP)$GT)))
+mamatata = data.frame(Ph1 = as.data.frame(rowRanges(vcf)$REF)$x,
+                      Ph2 =  as.data.frame(rowRanges(vcf)$ALT)$value,
+                      Ph1_count = sapply(geno(vcf)$AD, "[[", 1),
+                      Ph2_count = sapply(geno(vcf)$AD, "[[", 2),
+                      phasing_info = as.vector(unname(geno(vcf)$PH_info)),
+                      ranges=ranges(rowRanges(vcf)),
+                      seqnames=as.character(seqnames(vcf)))
 
 rownames(mamatata) = names(rowRanges(vcfP))
 
@@ -108,17 +113,20 @@ mamatata[mamatata$phasing_info == "1|0", c("Ph2", "Ph1", "Ph2_count", "Ph1_count
 ##-----------MBASED--Prepare samples-------------------
 
 
-mySNVs <- GRanges(seqnames=as.character(seqnames(vcfSNP)),
-ranges=ranges(rowRanges(vcfSNP)),
-aseID=geneList,
-allele1=as.character(mamatata$Ph1),
-allele2=as.character(mamatata$Ph2))
+mySNVs <- GRanges(seqnames=mamatata$seqnames,
+                  ranges=IRanges(start=mamatata$ranges.start,
+                                 end = mamatata$ranges.end,
+                                 width = mamatata$ranges.width,
+                                 names = mamatata$ranges.names),
+                  aseID=geneList,
+                  allele1=as.character(mamatata$Ph1),
+                  allele2=as.character(mamatata$Ph2))
 
 
 mySample <- SummarizedExperiment(assays=list(
-lociAllele1Counts=matrix(mamatata$Ph1_count, ncol=1, dimnames=list(names(mySNVsPhased), 'mySample')),
-lociAllele2Counts=matrix(mamatata$Ph2_count, ncol=1, dimnames=list(names(mySNVsPhased), 'mySample'))),
-rowRanges=mySNVs)
+    lociAllele1Counts=matrix(mamatata$Ph1_count, ncol=1, dimnames=list(names(mySNVsPhased), 'mySample')),
+    lociAllele2Counts=matrix(mamatata$Ph2_count, ncol=1, dimnames=list(names(mySNVsPhased), 'mySample'))),
+    rowRanges=mySNVs)
 
 
 #----Run MBASED
