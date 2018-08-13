@@ -1,4 +1,7 @@
-# ASE_MBASED
-Executable R script for ASE with MBASED
+# Allele Specific Expression Analysis with MBASED
 
-### Contibutors: Igor Hut, Svetozar Nesic and Viktorian Miok
+A wrapper R script that takes annotated VCF file (from [VEP](https://www.ensembl.org/info/docs/tools/vep/index.html)), prepares the data using [bioconductor functions](https://www.bioconductor.org/) and runs MBASED to perform ASE analysis.
+
+
+##### Contibutors: I. Hut, S. Nesic and V. Miok
+
